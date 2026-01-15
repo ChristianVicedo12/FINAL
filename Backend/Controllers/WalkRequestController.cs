@@ -1,9 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IskoWalkAPI.Data;
-using IskoWalkAPI.Models;
 using IskoWalkAPI.DTOs;
-using Microsoft.AspNetCore.Authorization;
+using IskoWalkAPI.Models;
 using System.Security.Claims;
 
 namespace IskoWalkAPI.Controllers
@@ -11,395 +11,337 @@ namespace IskoWalkAPI.Controllers
     [Authorize]
     [ApiController]
     [Route("api/[controller]")]
-    public class WalkRequestController : ControllerBase
+    public class WalkRequestsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
-        private readonly ILogger<WalkRequestController> _logger;
-
-        public WalkRequestController(ApplicationDbContext context, ILogger<WalkRequestController> logger)
+        
+        public WalkRequestsController(ApplicationDbContext context)
         {
             _context = context;
-            _logger = logger;
         }
-
+        
+        private int GetCurrentUserId()
+        {
+            return int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        }
+        
+        // GET: api/walkrequests/available
         [HttpGet("available")]
-        public async Task<ActionResult<List<WalkRequestResponseDto>>> GetAvailableRequests()
+        public async Task<IActionResult> GetAvailableRequests()
         {
-            try
-            {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                _logger.LogInformation($"User ID from token: {userIdClaim}");
-
-                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            var currentUserId = GetCurrentUserId();
+            
+            var requests = await _context.WalkRequests
+                .Include(w => w.User)
+                .Where(w => w.Status == "Active" && w.UserId != currentUserId)
+                .OrderByDescending(w => w.CreatedAt)
+                .Select(w => new WalkRequestResponseDto
                 {
-                    return Unauthorized(new { message = "Invalid token" });
-                }
-
-                var requests = await _context.WalkRequests
-                    .Include(w => w.User)
-                    .Where(w => w.UserId != userId && w.Status == "Active")
-                    .OrderByDescending(w => w.CreatedAt)
-                    .Select(w => new WalkRequestResponseDto
-                    {
-                        Id = w.Id,
-                        UserId = w.UserId,
-                        RequesterName = w.User!.FullName,
-                        RequesterEmail = w.User.Email,
-                        ContactNumber = w.User.ContactNumber,
-                        FromLocation = w.FromLocation,
-                        SpecifyOrigin = w.SpecifyOrigin,
-                        ToDestination = w.ToDestination,
-                        DateOfWalk = w.DateOfWalk,
-                        TimeOfWalk = w.TimeOfWalk,
-                        AttireDescription = w.AttireDescription,
-                        AdditionalNotes = w.AdditionalNotes,
-                        Status = w.Status,
-                        CreatedAt = w.CreatedAt
-                    })
-                    .ToListAsync();
-
-                _logger.LogInformation($"Found {requests.Count} available requests");
-                return Ok(requests);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error fetching available requests");
-                return StatusCode(500, new { message = "Error fetching requests", error = ex.Message });
-            }
+                    Id = w.Id,
+                    UserId = w.UserId,
+                    RequesterName = w.User != null ? w.User.FullName : "",
+                    RequesterEmail = w.User != null ? w.User.Email : "",
+                    FromLocation = w.FromLocation,
+                    SpecifyOrigin = w.SpecifyOrigin,
+                    ToDestination = w.ToDestination,
+                    DateOfWalk = w.DateOfWalk,
+                    TimeOfWalk = w.TimeOfWalk,
+                    AttireDescription = w.AttireDescription,
+                    AdditionalNotes = w.AdditionalNotes,
+                    Status = w.Status,
+                    CreatedAt = w.CreatedAt
+                })
+                .ToListAsync();
+            
+            return Ok(requests);
         }
-
-        [HttpPost("{requestId}/accept")]
-        public async Task<IActionResult> AcceptRequest(int requestId)
+        
+        // GET: api/walkrequests/my-requests
+        [HttpGet("my-requests")]
+        public async Task<IActionResult> GetMyRequests()
         {
-            try
-            {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                _logger.LogInformation($"Accept request - User ID: {userIdClaim}, Request ID: {requestId}");
-
-                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            var currentUserId = GetCurrentUserId();
+            
+            var requests = await _context.WalkRequests
+                .Include(w => w.User)
+                .Include(w => w.Companion)
+                .Where(w => w.UserId == currentUserId)
+                .OrderByDescending(w => w.CreatedAt)
+                .Select(w => new WalkRequestResponseDto
                 {
-                    return Unauthorized(new { message = "Invalid token" });
-                }
-
-                var request = await _context.WalkRequests
-                    .FirstOrDefaultAsync(w => w.Id == requestId);
-
-                if (request == null)
-                {
-                    return NotFound(new { message = "Request not found" });
-                }
-
-                if (request.UserId == userId)
-                {
-                    return BadRequest(new { message = "You cannot accept your own request" });
-                }
-
-                if (request.Status != "Active")
-                {
-                    return BadRequest(new { message = "Request is not available" });
-                }
-
-                request.Status = "Accepted";
-                request.AcceptedBy = userId;
-                request.AcceptedAt = DateTime.UtcNow;
-                request.UpdatedAt = DateTime.UtcNow;
-
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation($"Request {requestId} accepted by user {userId}");
-                return Ok(new { success = true, message = "Request accepted successfully" });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error accepting request");
-                return StatusCode(500, new { message = "Error accepting request", error = ex.Message });
-            }
+                    Id = w.Id,
+                    UserId = w.UserId,
+                    RequesterName = w.User != null ? w.User.FullName : "",
+                    RequesterEmail = w.User != null ? w.User.Email : "",
+                    CompanionId = w.CompanionId,
+                    CompanionName = w.Companion != null ? w.Companion.FullName : null,
+                    FromLocation = w.FromLocation,
+                    SpecifyOrigin = w.SpecifyOrigin,
+                    ToDestination = w.ToDestination,
+                    DateOfWalk = w.DateOfWalk,
+                    TimeOfWalk = w.TimeOfWalk,
+                    AttireDescription = w.AttireDescription,
+                    AdditionalNotes = w.AdditionalNotes,
+                    Status = w.Status,
+                    CreatedAt = w.CreatedAt,
+                    AcceptedAt = w.AcceptedAt,
+                    CancellationReason = w.CancellationReason
+                })
+                .ToListAsync();
+            
+            return Ok(requests);
         }
-
-        [HttpGet("my-accepted")]
-        public async Task<ActionResult<List<object>>> GetMyAcceptedRequests()
+        
+        // GET: api/walkrequests/accepted-walks
+        [HttpGet("accepted-walks")]
+        public async Task<IActionResult> GetAcceptedWalks()
         {
-            try
+            var currentUserId = GetCurrentUserId();
+            
+            Console.WriteLine($"[DEBUG] GetAcceptedWalks called by user: {currentUserId}");
+            
+            var allRequests = await _context.WalkRequests
+                .Include(w => w.User)
+                .Include(w => w.Companion)
+                .Where(w => w.AcceptedBy == currentUserId || w.CompanionId == currentUserId)
+                .ToListAsync();
+            
+            Console.WriteLine($"[DEBUG] Total requests for user: {allRequests.Count}");
+            foreach (var r in allRequests)
             {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                _logger.LogInformation($"Getting accepted requests for user: {userIdClaim}");
-
-                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
-                {
-                    return Unauthorized(new { message = "Invalid token" });
-                }
-
-                // Load all data first, then project
-                var requests = await _context.WalkRequests
-                    .Include(w => w.User)
-                    .Where(w => w.AcceptedBy == userId && w.Status == "Accepted")
-                    .OrderByDescending(w => w.AcceptedAt)
-                    .ToListAsync();
-
-                _logger.LogInformation($"Found {requests.Count} accepted requests");
-
-                // Project after loading to avoid query translation issues
-                var result = requests.Select(w => new
-                {
-                    id = w.Id,
-                    userId = w.UserId,
-                    requesterName = w.User?.FullName ?? "Unknown User",
-                    requesterEmail = w.User?.Email ?? "",
-                    contactNumber = w.User?.ContactNumber,
-                    fromLocation = w.FromLocation,
-                    specifyOrigin = w.SpecifyOrigin,
-                    toDestination = w.ToDestination,
-                    dateOfWalk = w.DateOfWalk,
-                    timeOfWalk = w.TimeOfWalk,
-                    attireDescription = w.AttireDescription,
-                    additionalNotes = w.AdditionalNotes,
-                    status = w.Status,
-                    createdAt = w.CreatedAt,
-                    acceptedAt = w.AcceptedAt
-                }).ToList();
-
-                return Ok(result);
+                Console.WriteLine($"[DEBUG] Request ID: {r.Id}, Status: '{r.Status}'");
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting accepted requests");
-                return StatusCode(500, new { message = "Error fetching accepted requests", error = ex.Message });
-            }
+            
+            var acceptedRequests = allRequests
+                .Where(w => w.Status == "Accepted")
+                .OrderByDescending(w => w.AcceptedAt)
+                .Select(w => new WalkRequestResponseDto
+                {
+                    Id = w.Id,
+                    UserId = w.UserId,
+                    RequesterName = w.User != null ? w.User.FullName : "",
+                    RequesterEmail = w.User != null ? w.User.Email : "",
+                    CompanionId = w.AcceptedBy ?? w.CompanionId,
+                    CompanionName = w.Companion != null ? w.Companion.FullName : "",
+                    FromLocation = w.FromLocation,
+                    SpecifyOrigin = w.SpecifyOrigin,
+                    ToDestination = w.ToDestination,
+                    DateOfWalk = w.DateOfWalk,
+                    TimeOfWalk = w.TimeOfWalk,
+                    AttireDescription = w.AttireDescription,
+                    AdditionalNotes = w.AdditionalNotes,
+                    Status = w.Status,
+                    CreatedAt = w.CreatedAt,
+                    AcceptedAt = w.AcceptedAt
+                })
+                .ToList();
+            
+            Console.WriteLine($"[DEBUG] Filtered accepted requests: {acceptedRequests.Count}");
+            
+            return Ok(acceptedRequests);
         }
-
-        [HttpPost("{requestId}/cancel")]
-        public async Task<IActionResult> CancelRequest(int requestId, [FromBody] CancelRequestDto dto)
-        {
-            try
-            {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                _logger.LogInformation($"Cancel request - User ID: {userIdClaim}, Request ID: {requestId}");
-
-                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
-                {
-                    return Unauthorized(new { message = "Invalid token" });
-                }
-
-                var request = await _context.WalkRequests.FirstOrDefaultAsync(w => w.Id == requestId);
-
-                if (request == null)
-                {
-                    return NotFound(new { message = "Request not found" });
-                }
-
-                if (request.UserId != userId && request.AcceptedBy != userId)
-                {
-                    return Forbid();
-                }
-
-                if (request.Status == "Completed" || request.Status == "Cancelled")
-                {
-                    return BadRequest(new { message = "Request already finalized" });
-                }
-
-                request.Status = "Cancelled";
-                request.CancellationReason = dto.Reason ?? "No reason provided";
-                request.CancelledAt = DateTime.UtcNow;
-                request.UpdatedAt = DateTime.UtcNow;
-
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation($"Request {requestId} cancelled by user {userId}");
-                return Ok(new { success = true, message = "Request cancelled successfully" });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error cancelling request");
-                return StatusCode(500, new { message = "Error cancelling request", error = ex.Message });
-            }
-        }
-
-        [HttpPost("{requestId}/complete")]
-        public async Task<IActionResult> CompleteRequest(int requestId)
-        {
-            try
-            {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                _logger.LogInformation($"Complete request - User ID: {userIdClaim}, Request ID: {requestId}");
-
-                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
-                {
-                    return Unauthorized(new { message = "Invalid token" });
-                }
-
-                var request = await _context.WalkRequests.FirstOrDefaultAsync(w => w.Id == requestId);
-
-                if (request == null)
-                {
-                    return NotFound(new { message = "Request not found" });
-                }
-
-                if (request.UserId != userId && request.AcceptedBy != userId)
-                {
-                    return Forbid();
-                }
-
-                if (request.Status != "Accepted")
-                {
-                    return BadRequest(new { message = "Request must be accepted first" });
-                }
-
-                request.Status = "Completed";
-                request.UpdatedAt = DateTime.UtcNow;
-
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation($"Request {requestId} completed by user {userId}");
-                return Ok(new { success = true, message = "Request completed successfully" });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error completing request");
-                return StatusCode(500, new { message = "Error completing request", error = ex.Message });
-            }
-        }
-
-        [HttpPost("create")]
-        public async Task<IActionResult> CreateRequest([FromBody] CreateWalkRequestDto dto)
-        {
-            try
-            {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                _logger.LogInformation($"Creating walk request for user: {userIdClaim}");
-
-                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
-                {
-                    return Unauthorized(new { message = "Invalid token" });
-                }
-
-                var walkRequest = new WalkRequest
-                {
-                    UserId = userId,
-                    FromLocation = dto.FromLocation,
-                    SpecifyOrigin = dto.SpecifyOrigin,
-                    ToDestination = dto.ToDestination,
-                    DateOfWalk = dto.DateOfWalk,
-                    TimeOfWalk = dto.TimeOfWalk,
-                    AttireDescription = dto.AttireDescription,
-                    AdditionalNotes = dto.AdditionalNotes,
-                    Status = "Active",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-
-                _context.WalkRequests.Add(walkRequest);
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation($"Walk request created successfully with ID: {walkRequest.Id}");
-
-                return Ok(new
-                {
-                    success = true,
-                    message = "Walk request created successfully",
-                    requestId = walkRequest.Id
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Error creating walk request: {ex.Message}");
-                _logger.LogError($"Stack trace: {ex.StackTrace}");
-                return StatusCode(500, new { message = "Error creating request", error = ex.Message });
-            }
-        }
-
-        [HttpGet("my-active")]
-        public async Task<IActionResult> GetMyActiveRequests()
-        {
-            try
-            {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
-                {
-                    return Unauthorized(new { message = "Invalid token" });
-                }
-
-                var requests = await _context.WalkRequests
-                    .Include(w => w.User)
-                    .Where(w => w.UserId == userId && (w.Status == "Active" || w.Status == "Accepted"))
-                    .OrderByDescending(w => w.CreatedAt)
-                    .ToListAsync();
-
-                var result = requests.Select(w => new
-                {
-                    id = w.Id,
-                    userId = w.UserId,
-                    requesterName = w.User?.FullName ?? "You",
-                    requesterEmail = w.User?.Email ?? "",
-                    companionId = w.AcceptedBy,
-                    companionName = w.AcceptedBy.HasValue ? _context.Users.FirstOrDefault(u => u.Id == w.AcceptedBy.Value)?.FullName : null,
-                    fromLocation = w.FromLocation,
-                    specifyOrigin = w.SpecifyOrigin,
-                    toDestination = w.ToDestination,
-                    dateOfWalk = w.DateOfWalk,
-                    timeOfWalk = w.TimeOfWalk,
-                    attireDescription = w.AttireDescription,
-                    additionalNotes = w.AdditionalNotes,
-                    status = w.Status,
-                    createdAt = w.CreatedAt
-                }).ToList();
-
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Error fetching requests: {ex.Message}");
-                return StatusCode(500, new { message = "Error fetching requests", error = ex.Message });
-            }
-        }
-
+        
+        // GET: api/walkrequests/history
         [HttpGet("history")]
-        public async Task<ActionResult<List<object>>> GetHistory()
+        public async Task<IActionResult> GetHistory()
         {
-            try
-            {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                _logger.LogInformation($"Getting history for user: {userIdClaim}");
-
-                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            var currentUserId = GetCurrentUserId();
+            
+            var requests = await _context.WalkRequests
+                .Include(w => w.User)
+                .Include(w => w.Companion)
+                .Where(w => (w.UserId == currentUserId || w.CompanionId == currentUserId || w.AcceptedBy == currentUserId) 
+                    && (w.Status == "Completed" || w.Status == "Cancelled"))
+                .OrderByDescending(w => w.UpdatedAt ?? w.CancelledAt)
+                .Select(w => new WalkRequestResponseDto
                 {
-                    return Unauthorized(new { message = "Invalid token" });
-                }
-
-                var history = await _context.WalkRequests
-                    .Include(w => w.User)
-                    .Where(w => (w.UserId == userId || w.AcceptedBy == userId) 
-                             && (w.Status == "Completed" || w.Status == "Cancelled"))
-                    .OrderByDescending(w => w.UpdatedAt ?? w.CreatedAt)
-                    .ToListAsync();
-
-                var result = history.Select(w => new
+                    Id = w.Id,
+                    UserId = w.UserId,
+                    RequesterName = w.User != null ? w.User.FullName : "",
+                    RequesterEmail = w.User != null ? w.User.Email : "",
+                    CompanionId = w.CompanionId,
+                    CompanionName = w.Companion != null ? w.Companion.FullName : null,
+                    FromLocation = w.FromLocation,
+                    SpecifyOrigin = w.SpecifyOrigin,
+                    ToDestination = w.ToDestination,
+                    DateOfWalk = w.DateOfWalk,
+                    TimeOfWalk = w.TimeOfWalk,
+                    AttireDescription = w.AttireDescription,
+                    AdditionalNotes = w.AdditionalNotes,
+                    Status = w.Status,
+                    CreatedAt = w.CreatedAt,
+                    AcceptedAt = w.AcceptedAt,
+                    CancellationReason = w.CancellationReason
+                })
+                .ToListAsync();
+            
+            return Ok(requests);
+        }
+        
+        // GET: api/walkrequests/{id}
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetRequest(int id)
+        {
+            var request = await _context.WalkRequests
+                .Include(w => w.User)
+                .Include(w => w.Companion)
+                .Where(w => w.Id == id)
+                .Select(w => new WalkRequestResponseDto
                 {
-                    id = w.Id,
-                    userId = w.UserId,
-                    requesterName = w.User?.FullName ?? "Unknown User",
-                    companionId = w.AcceptedBy,
-                    companionName = w.AcceptedBy.HasValue ? _context.Users.FirstOrDefault(u => u.Id == w.AcceptedBy.Value)?.FullName : null,
-                    companionContact = w.AcceptedBy.HasValue ? _context.Users.FirstOrDefault(u => u.Id == w.AcceptedBy.Value)?.ContactNumber : null,
-                    fromLocation = w.FromLocation,
-                    specifyOrigin = w.SpecifyOrigin,
-                    toDestination = w.ToDestination,
-                    dateOfWalk = w.DateOfWalk,
-                    timeOfWalk = w.TimeOfWalk,
-                    attireDescription = w.AttireDescription,
-                    additionalNotes = w.AdditionalNotes,
-                    status = w.Status,
-                    createdAt = w.CreatedAt,
-                    completedAt = w.UpdatedAt
-                }).ToList();
-
-                _logger.LogInformation($"Found {result.Count} history items");
-                return Ok(result);
-            }
-            catch (Exception ex)
+                    Id = w.Id,
+                    UserId = w.UserId,
+                    RequesterName = w.User != null ? w.User.FullName : "",
+                    RequesterEmail = w.User != null ? w.User.Email : "",
+                    CompanionId = w.CompanionId,
+                    CompanionName = w.Companion != null ? w.Companion.FullName : null,
+                    FromLocation = w.FromLocation,
+                    SpecifyOrigin = w.SpecifyOrigin,
+                    ToDestination = w.ToDestination,
+                    DateOfWalk = w.DateOfWalk,
+                    TimeOfWalk = w.TimeOfWalk,
+                    AttireDescription = w.AttireDescription,
+                    AdditionalNotes = w.AdditionalNotes,
+                    Status = w.Status,
+                    CreatedAt = w.CreatedAt,
+                    AcceptedAt = w.AcceptedAt,
+                    CancellationReason = w.CancellationReason
+                })
+                .FirstOrDefaultAsync();
+            
+            if (request == null)
             {
-                _logger.LogError(ex, "Error getting history");
-                return StatusCode(500, new { message = "Error fetching history", error = ex.Message });
+                return NotFound(new { message = "Walk request not found" });
             }
+            
+            return Ok(request);
+        }
+        
+        // POST: api/walkrequests
+        [HttpPost]
+        public async Task<ActionResult<WalkRequest>> CreateRequest(WalkRequest request)
+        {
+            var currentUserId = GetCurrentUserId();
+            
+            request.UserId = currentUserId;
+            request.CreatedAt = DateTime.UtcNow;
+            request.Status = "Active";
+            
+            _context.WalkRequests.Add(request);
+            await _context.SaveChangesAsync();
+            
+            return CreatedAtAction(nameof(GetRequest), new { id = request.Id }, request);
+        }
+        
+        // POST: api/walkrequests/{id}/accept
+        [HttpPost("{id}/accept")]
+        public async Task<IActionResult> AcceptRequest(int id)
+        {
+            var currentUserId = GetCurrentUserId();
+            
+            var request = await _context.WalkRequests.FindAsync(id);
+            
+            if (request == null)
+            {
+                return NotFound(new { message = "Walk request not found" });
+            }
+            
+            if (request.Status != "Active")
+            {
+                return BadRequest(new { message = "This request has already been accepted or cancelled" });
+            }
+            
+            if (request.UserId == currentUserId)
+            {
+                return BadRequest(new { message = "You cannot accept your own request" });
+            }
+            
+            request.AcceptedBy = currentUserId;
+            request.CompanionId = currentUserId;
+            request.Status = "Accepted";
+            request.AcceptedAt = DateTime.UtcNow;
+            
+            await _context.SaveChangesAsync();
+            
+            return Ok(new { message = "Request accepted successfully" });
+        }
+        
+        // POST: api/walkrequests/{id}/cancel
+        [HttpPost("{id}/cancel")]
+        public async Task<IActionResult> CancelRequest(int id, [FromBody] CancelRequestDto dto)
+        {
+            var currentUserId = GetCurrentUserId();
+            
+            var request = await _context.WalkRequests.FindAsync(id);
+            
+            if (request == null)
+            {
+                return NotFound(new { message = "Walk request not found" });
+            }
+            
+            if (request.UserId != currentUserId)
+            {
+                return Forbid();
+            }
+            
+            if (request.Status == "Cancelled" || request.Status == "Completed")
+            {
+                return BadRequest(new { message = "Cannot cancel this request" });
+            }
+            
+            request.Status = "Cancelled";
+            request.CancellationReason = dto.Reason;
+            request.CancelledAt = DateTime.UtcNow;
+            
+            await _context.SaveChangesAsync();
+            
+            return Ok(new { message = "Request cancelled successfully" });
+        }
+        
+        // POST: api/walkrequests/{id}/complete
+        [HttpPost("{id}/complete")]
+        public async Task<IActionResult> CompleteRequest(int id)
+        {
+            var currentUserId = GetCurrentUserId();
+            
+            Console.WriteLine($"[DEBUG] CompleteRequest called by user {currentUserId} for request {id}");
+            
+            var request = await _context.WalkRequests.FindAsync(id);
+            
+            if (request == null)
+            {
+                Console.WriteLine($"[DEBUG] Request {id} not found");
+                return NotFound(new { message = "Walk request not found" });
+            }
+            
+            Console.WriteLine($"[DEBUG] Request {id} current status: '{request.Status}'");
+            
+            bool isCompanion = (request.AcceptedBy.HasValue && request.AcceptedBy.Value == currentUserId) || 
+                              (request.CompanionId.HasValue && request.CompanionId.Value == currentUserId);
+            bool isRequester = request.UserId == currentUserId;
+            
+            Console.WriteLine($"[DEBUG] isCompanion: {isCompanion}, isRequester: {isRequester}");
+            
+            if (!isCompanion && !isRequester)
+            {
+                Console.WriteLine($"[DEBUG] User {currentUserId} not authorized");
+                return Forbid();
+            }
+            
+            if (request.Status != "Accepted")
+            {
+                Console.WriteLine($"[DEBUG] Cannot complete - status is '{request.Status}', not 'Accepted'");
+                return BadRequest(new { message = $"Only accepted requests can be marked as completed. Current status: {request.Status}" });
+            }
+            
+            request.Status = "Completed";
+            request.UpdatedAt = DateTime.UtcNow;
+            
+            Console.WriteLine($"[DEBUG] Saving changes - new status: '{request.Status}'");
+            await _context.SaveChangesAsync();
+            
+            Console.WriteLine($"[DEBUG] Request {id} marked as completed successfully");
+            
+            return Ok(new { message = "Request completed successfully" });
         }
     }
 }
