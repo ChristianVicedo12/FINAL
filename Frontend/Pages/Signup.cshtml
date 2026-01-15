@@ -1,0 +1,43 @@
+@page
+@model IskoWalk.Pages.SignupModel
+<link rel="stylesheet" href="~/css/login.css" />
+<div class="login-wrapper">
+    <div class="left-panel">
+        <img src="/images/IskoWalk.png" class="logo" />
+        <p>No Isko Walks Alone.</p>
+    </div>
+    <div class="right-panel">
+        <div class="form-header">
+            <h2>Create An Account</h2>
+            <p>Join the community with your PUP Email to get started.</p>
+        </div>
+        <div id="errorMessage" style="display:none; color:red; margin-bottom:10px; padding:10px; background:#ffe6e6; border-radius:5px;"></div>
+        <div id="successMessage" style="display:none; color:green; margin-bottom:10px; padding:10px; background:#e6ffe6; border-radius:5px;"></div>
+        <input type="text" id="fullName" placeholder="Full Name" required />
+        <input type="email" id="email" placeholder="Email Address" required />
+        <input type="text" id="contactNumber" placeholder="Contact Number (09XXXXXXXXX)" maxlength="11" required />
+        <input type="password" id="password" placeholder="Password" required />
+        <button class="btn-main" id="signupBtn">Sign Up</button>
+        <p class="small">
+            Already have an account?
+            <a asp-page="/Index" class="link">Login</a>
+        </p>
+    </div>
+</div>
+<script src="~/js/AuthAPI.js"></script>
+<script src="~/js/signup.js"></script>
+<script>
+// ✅ Prevent non-numeric input in real-time
+document.getElementById('contactNumber').addEventListener('input', function(e) {
+    // Remove any non-digit characters
+    this.value = this.value.replace(/[^0-9]/g, '');
+});
+
+// ✅ Prevent pasting non-numeric text
+document.getElementById('contactNumber').addEventListener('paste', function(e) {
+    e.preventDefault();
+    const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+    const numbersOnly = pastedText.replace(/[^0-9]/g, '');
+    this.value = numbersOnly.substring(0, 11); // Limit to 11 digits
+});
+</script>

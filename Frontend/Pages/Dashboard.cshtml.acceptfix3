@@ -1,0 +1,354 @@
+@page
+@model IskoWalk.Pages.DashboardModel
+<link rel="stylesheet" href="~/css/dashboard.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+<div class="dashboard">
+
+    @* SIDEBAR *@
+    <aside class="sidebar">
+        <div class="brand">
+            <img src="~/images/IskoWalk.png" />
+            <span>ISKOWALK</span>
+        </div>
+
+        <nav class="menu">
+            <a asp-page="/Dashboard" class="active">
+                <i class="fa-solid fa-house"></i>Dashboard
+            </a>
+
+            <a asp-page="/MyRequestsActive">
+                <i class="fa-solid fa-file-lines"></i>My Requests
+            </a>
+
+            <a asp-page="/Profile">
+                <i class="fa-solid fa-user"></i>Profile
+            </a>
+        </nav>
+
+        <div class="user-box" id="profileBtn">
+            <img src="~/images/IskoWalk.png" />
+            <div class="user-info">
+                <strong id="sidebarUsername">Loading...</strong>
+                <span>Student</span>
+            </div>
+            <i class="fa-solid fa-chevron-down"></i>
+        </div>
+
+        <div class="dropdown" id="dropdownMenu">
+            <div class="dropdown-user">
+                <strong id="dropdownUsername">Loading...</strong>
+                <small id="dropdownEmail">Loading...</small>
+            </div>
+            <hr />
+            <a id="logoutBtn" onclick="handleLogout()" style="cursor: pointer;"><i class="fa-solid fa-right-from-bracket"></i> Log out</a>
+        </div>
+    </aside>
+
+    <main class="content">
+        <div class="topbar">
+            <div class="directory"><b>Dashboard</b></div>
+            <a asp-page="/Create" class="btn-main"><i class="fa-solid fa-plus"></i> New Request</a>
+        </div>
+
+        <div class="divider"></div>
+
+        <h2 id="welcomeMessage">Welcome, Iskolar!</h2>
+        <p class="subtitle">Find a walking companion and help keep the community safe.</p>
+
+        <div class="section-header">
+            <h3>Available Walk Requests</h3>
+            <button class="btn-refresh" onclick="refreshRequests()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+        </div>
+
+        <div id="loadingState" style="text-align: center; padding: 40px;">
+            <i class="fa-solid fa-spinner fa-spin" style="font-size: 2rem;"></i>
+            <p>Loading available requests...</p>
+        </div>
+
+        <div id="emptyState" class="empty-state" style="display: none;">
+            <p class="title">No available requests at the moment.</p>
+            <p class="subtitle">Check back later or create your own request.</p>
+        </div>
+
+        <div id="requestGrid" class="request-grid" style="display: none;"></div>
+
+        <div id="detailsModal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Walk Request Details</h2>
+                    <p id="modalRequestDate">Requested on...</p>
+                </div>
+
+                <div class="modal-body">
+                    <div class="modal-section">
+                        <i class="fa-solid fa-user icon"></i>
+                        <div>
+                            <strong>Requester</strong>
+                            <p id="modalRequester">Loading...</p>
+                        </div>
+                    </div>
+
+                    <div class="modal-section">
+                        <i class="fa-solid fa-location-dot icon"></i>
+                        <div>
+                            <strong>Route</strong>
+                            <p id="modalFrom">From: <b>Loading...</b></p>
+                            <p id="modalTo">To: <b>Loading...</b></p>
+                        </div>
+                    </div>
+
+                    <div class="modal-section">
+                        <i class="fa-regular fa-clock icon"></i>
+                        <div>
+                            <strong>Date & Time</strong>
+                            <p id="modalDateTime">Loading...</p>
+                        </div>
+                    </div>
+
+                    <div class="modal-section">
+                        <i class="fa-solid fa-shirt icon"></i>
+                        <div>
+                            <strong>Attire Description</strong>
+                            <p id="modalAttire">N/A</p>
+                        </div>
+                    </div>
+
+                    <div class="modal-section">
+                        <i class="fa-solid fa-phone icon"></i>
+                        <div>
+                            <strong>Contact Number</strong>
+                            <p id="modalContact">N/A</p>
+                        </div>
+                    </div>
+
+                    <div class="modal-section">
+                        <i class="fa-solid fa-pen icon"></i>
+                        <div>
+                            <strong>Additional Notes</strong>
+                            <p id="modalNotes">N/A</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-secondary" onclick="closeModal()">Close</button>
+                    <button class="btn-accept" onclick="acceptRequest()"><i class="fa-solid fa-check"></i> Accept Request</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script>
+    let currentRequestId = null;
+    let allRequests = [];
+
+    const btn = document.getElementById("profileBtn");
+    const menu = document.getElementById("dropdownMenu");
+
+    btn.onclick = () => menu.classList.toggle("show");
+
+    document.addEventListener("click", e => {
+        if(!btn.contains(e.target) && !menu.contains(e.target)){
+            menu.classList.remove("show");
+        }
+    });
+
+    // Load user info
+    async function loadUserInfo() {
+        const username = sessionStorage.getItem('username');
+        const email = sessionStorage.getItem('email');
+        
+        if (username) {
+            document.getElementById('sidebarUsername').textContent = username;
+            document.getElementById('dropdownUsername').textContent = username;
+            document.getElementById('welcomeMessage').textContent = `Welcome, ${username}!`;
+        }
+        if (email) {
+            document.getElementById('dropdownEmail').textContent = email;
+        }
+    }
+
+    // Format time from TimeSpan
+    function formatTime(timeSpan) {
+        if (!timeSpan) return 'Not specified';
+        
+        const parts = timeSpan.toString().split(':');
+        let hours = parseInt(parts[0]);
+        const minutes = parts[1];
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+        
+        return `${hours}:${minutes} ${ampm}`;
+    }
+
+    // Format date
+    function formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { 
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+        });
+    }
+
+    // Format short date
+    function formatShortDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { 
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+    }
+
+    // Load available requests
+    async function loadRequests() {
+        const loadingState = document.getElementById('loadingState');
+        const emptyState = document.getElementById('emptyState');
+        const requestGrid = document.getElementById('requestGrid');
+
+        loadingState.style.display = 'block';
+        emptyState.style.display = 'none';
+        requestGrid.style.display = 'none';
+
+        try {
+            const username = sessionStorage.getItem('username');
+            if (!username) {
+            const userId = sessionStorage.getItem('userId');
+
+            const response = await fetch(`http://localhost:5012/api/walkrequest/available?userId=${userId}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const requests = await response.json();
+            allRequests = requests;
+            const requests = await response.json();
+            allRequests = requests;
+            
+            loadingState.style.display = 'none';
+            
+            if (!requests || requests.length === 0) {
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            requestGrid.style.display = 'grid';
+            requestGrid.innerHTML = requests.map(request => `
+                <div class="request-card" onclick="showDetails(${request.id})">
+                    <div class="card-header">
+                        <div class="requester">
+                            <div class="avatar"></div>
+                            <div>
+                                <strong>${request.requesterName || 'Unknown'}</strong>
+                                <span>Requester</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p class="location"><i class="fa-solid fa-location-dot"></i> <strong>From:</strong> ${request.fromLocation}</p>
+                        <p class="location"><i class="fa-solid fa-flag"></i> <strong>To:</strong> ${request.toDestination || request.toLocation}</p>
+                        <p class="time"><i class="fa-regular fa-clock"></i> ${formatShortDate(request.dateOfWalk || request.walkDate)} at ${formatTime(request.timeOfWalk || request.walkTime)}</p>
+                    </div>
+                    <div class="card-footer">
+                        <button class="btn-view">View Details</button>
+                        <button class="btn-accept-small" onclick="event.stopPropagation(); quickAccept(${request.id})"><i class="fa-solid fa-check"></i> Accept</button>
+                    </div>
+                </div>
+            `).join('');
+
+        } catch (error) {
+            console.error('Error loading requests:', error);
+            loadingState.innerHTML = '<p style="color: red;">Error loading requests. Please try again.</p>';
+        }
+    }
+
+    // Show details modal
+    function showDetails(id) {
+        const request = allRequests.find(r => r.id === id);
+        if (!request) {
+            console.error('Request not found:', id);
+            return;
+        }
+
+        currentRequestId = id;
+
+        document.getElementById('modalRequester').textContent = request.requesterName || 'Unknown';
+        document.getElementById('modalFrom').innerHTML = `From: <b>${request.fromLocation}${request.specifyOrigin ? ' (' + request.specifyOrigin + ')' : ''}</b>`;
+        document.getElementById('modalTo').innerHTML = `To: <b>${request.toDestination || request.toLocation}</b>`;
+        document.getElementById('modalDateTime').textContent = `${formatDate(request.dateOfWalk || request.walkDate)} at ${formatTime(request.timeOfWalk || request.walkTime)}`;
+        document.getElementById('modalAttire').textContent = request.attireDescription || 'N/A';
+        document.getElementById('modalContact').textContent = request.contactNumber || 'N/A';
+        document.getElementById('modalNotes').textContent = request.additionalNotes || 'N/A';
+        document.getElementById('modalRequestDate').textContent = `Requested on ${formatShortDate(request.createdAt)}`;
+
+        document.getElementById('detailsModal').classList.add('show');
+    }
+
+    // Close modal
+    function closeModal() {
+        document.getElementById('detailsModal').classList.remove('show');
+    }
+
+    // Quick accept
+    async function quickAccept(id) {
+        currentRequestId = id;
+        await acceptRequest();
+    }
+
+    // Accept request
+    async function acceptRequest() {
+        if (!currentRequestId) return;
+
+        const username = sessionStorage.getItem('username');
+        const userId = sessionStorage.getItem("userId");
+        if (!username) {
+            alert('Please log in first');
+            return;
+        }
+
+        try {
+            const response = await fetch(`http://localhost:5012/api/walkrequest/${currentRequestId}/accept`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ companionId: username })
+            });
+
+            if (response.ok) {
+                alert('Request accepted successfully!');
+                closeModal();
+                await loadRequests();
+            } else {
+                const error = await response.json();
+                alert('Failed to accept: ' + (error.message || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error accepting request:', error);
+            alert('Error: ' + error.message);
+        }
+    }
+
+    // Refresh requests
+    async function refreshRequests() {
+        await loadRequests();
+    }
+
+    function handleLogout() {
+        sessionStorage.clear();
+        localStorage.clear();
+        window.location.href = '/Index';
+    }
+
+    // Load on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadUserInfo();
+        loadRequests();
+    });
+</script>

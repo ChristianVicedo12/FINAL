@@ -1,0 +1,197 @@
+@page
+@model IskoWalk.Pages.CreateModel
+<link rel="stylesheet" href="~/css/create.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+<div class="dashboard">
+
+    @* SIDEBAR *@
+    <aside class="sidebar">
+        <div class="brand">
+            <img src="~/images/IskoWalk.png" />
+            <span>ISKOWALK</span>
+        </div>
+
+        <nav class="menu">
+            <a asp-page="/Dashboard" class="@(PageContext.ActionDescriptor.ViewEnginePath == "/dashboard" ? "active" : "")">
+                <i class="fa-solid fa-house"></i>Dashboard
+            </a>
+
+            <a asp-page="/MyRequestsActive" class="@(PageContext.ActionDescriptor.ViewEnginePath == "/myrequestsactive" ? "active" : "")">
+                <i class="fa-solid fa-file-lines"></i>My Requests
+            </a>
+
+            <a asp-page="/Profile" class="@(PageContext.ActionDescriptor.ViewEnginePath == "/profile" ? "active" : "")">
+                <i class="fa-solid fa-user"></i>Profile
+            </a>
+        </nav>
+
+        <div class="user-box" id="profileBtn">
+            <img src="~/images/IskoWalk.png" />
+            <div class="user-info">
+                <strong>juan.dc</strong>
+                <span>Student</span>
+            </div>
+            <i class="fa-solid fa-chevron-down"></i>
+        </div>
+
+        <div class="dropdown" id="dropdownMenu">
+            <div class="dropdown-user">
+                <strong>juan.dc</strong>
+                <small>juan.dc@iskolarngbayan.pup.edu.ph</small>
+            </div>
+            <hr />
+            <a><i class="fa-solid fa-right-from-bracket"></i> Log out</a>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="content">
+
+        <div class="topbar">
+            <div class="directory">Dashboard › <b>Create</b></div>
+            <a href="/Create" class="btn-main"><i class="fa-solid fa-plus"></i> New Request</a>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- CREATE CARD -->
+        <div class="create-container">
+
+            <h2>Create a New Walk Request</h2>
+            <p class="subtitle">Fill out the details below to find a walking companion.</p>
+
+            <form class="create-form" onsubmit="submitRequest(event)">
+
+                <div class="create-row">
+                    <div class="form-group">
+                        <label for="fromLocation">From (PUP Location) <span style="color:red">*</span></label>
+                        <select class="form-control" id="fromLocation" required>
+                            <option value="" disabled selected>Select a starting point</option>
+                            <option value="Charlie del Rosario">Charlie del Rosario</option>
+                            <option value="Dome">Dome</option>
+                            <option value="East Wing">East Wing</option>
+                            <option value="GrandStand">GrandStand</option>
+                            <option value="Gymnasium">Gymnasium</option>
+                            <option value="Interfaith Chapel">Interfaith Chapel</option>
+                            <option value="Lagoon">Lagoon</option>
+                            <option value="Main Building">Main Building</option>
+                            <option value="Main Gate">Main Gate</option>
+                            <option value="Ninoy Aquino Library">Ninoy Aquino Library</option>
+                            <option value="North Wing">North Wing</option>
+                            <option value="Obelisk">Obelisk</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>Specify Origin (Optional)</label>
+                        <input id="specifyOrigin" placeholder="e.g., S505" />
+                        <small>Room #, floor, or specific landmark.</small>
+                    </div>
+                </div>
+
+                <label>To (Destination) <span style="color:red">*</span></label>
+                <input id="toDestination" placeholder="e.g., Pureza LRT Station, Teresa St." required />
+
+                <div class="create-row">
+                    <div>
+                        <label>Date of Walk <span style="color:red">*</span></label>
+                        <input id="dateOfWalk" type="date" required />
+                    </div>
+
+                    <div>
+                        <label>Time of Walk <span style="color:red">*</span></label>
+                        <input id="timeOfWalk" type="time" required />
+                    </div>
+                </div>
+
+                <!-- ✅ ADDED: Attire Description -->
+                <label>Attire Description (Optional)</label>
+                <input id="attireDescription" placeholder="e.g., Wearing red jacket, blue jeans" />
+                <small>Help your companion identify you easily.</small>
+
+                <label>Additional Notes (Optional)</label>
+                <textarea id="additionalNotes" placeholder="e.g., Please meet me at the lobby."></textarea>
+
+                <button type="submit" class="submit-btn">Submit Request</button>
+
+            </form>
+
+        </div>
+
+    </main>
+</div>
+
+<script>
+    const btn = document.getElementById("profileBtn");
+    const menu = document.getElementById("dropdownMenu");
+
+    btn.onclick = () => menu.classList.toggle("show");
+
+    document.addEventListener("click", e => {
+        if(!btn.contains(e.target) && !menu.contains(e.target)){
+            menu.classList.remove("show");
+        }
+    });
+
+    async function submitRequest(e) {
+        e.preventDefault();
+        
+        const form = e.target;
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+            alert('Please login first');
+            window.location.href = '/Login';
+            return;
+        }
+
+        // Get form values
+        const requestData = {
+            fromLocation: document.getElementById('fromLocation').value,
+            specifyOrigin: document.getElementById('specifyOrigin').value || null,
+            toDestination: document.getElementById('toDestination').value,
+            dateOfWalk: document.getElementById('dateOfWalk').value,
+            timeOfWalk: document.getElementById('timeOfWalk').value,
+            attireDescription: document.getElementById('attireDescription').value || null,
+            additionalNotes: document.getElementById('additionalNotes').value || null
+        };
+
+        // Validate required fields
+        if (!requestData.fromLocation || !requestData.toDestination || 
+            !requestData.dateOfWalk || !requestData.timeOfWalk) {
+            alert('Please fill in all required fields');
+            return;
+        }
+
+        try {
+            const response = await fetch('http://localhost:5012/api/WalkRequest/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(requestData)
+            });
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    alert('Session expired. Please login again.');
+                    localStorage.removeItem('token');
+                    window.location.href = '/Login';
+                    return;
+                }
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            console.log('Success:', result);
+            alert('Walk request created successfully!');
+            window.location.href = '/MyRequestsActive';
+            
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Failed to create request. Please try again.');
+        }
+    }
+</script>

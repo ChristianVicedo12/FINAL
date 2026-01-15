@@ -1,0 +1,292 @@
+@page
+@model IskoWalk.Pages.ProfileModel
+<link rel="stylesheet" href="~/css/profile.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+<div class="dashboard">
+
+    @* SIDEBAR *@
+    <aside class="sidebar">
+        <div class="brand">
+            <img src="~/images/IskoWalk.png" />
+            <span>ISKOWALK</span>
+        </div>
+
+        <nav class="menu">
+            <a asp-page="/Dashboard">
+                <i class="fa-solid fa-house"></i>Dashboard
+            </a>
+
+            <a asp-page="/MyRequestsActive">
+                <i class="fa-solid fa-file-lines"></i>My Requests
+            </a>
+
+            <a asp-page="/Profile" class="active">
+                <i class="fa-solid fa-user"></i>Profile
+            </a>
+        </nav>
+
+        <div class="user-box" id="profileBtn">
+            <img src="~/images/IskoWalk.png" />
+            <div class="user-info">
+                <strong id="sidebarUsername">Loading...</strong>
+                <span>Student</span>
+            </div>
+            <i class="fa-solid fa-chevron-down"></i>
+        </div>
+
+        <div class="dropdown" id="dropdownMenu">
+            <div class="dropdown-user">
+                <strong id="dropdownUsername">Loading...</strong>
+                <small id="dropdownEmail">Loading...</small>
+            </div>
+            <hr />
+            <a id="logoutBtn" onclick="handleLogout()" style="cursor: pointer;"><i class="fa-solid fa-right-from-bracket"></i> Log out</a>
+        </div>
+    </aside>
+
+    <main class="content">
+        <div class="topbar">
+            <div class="directory">Dashboard › <b>Profile</b></div>
+            <a href="/Create" class="btn-main"><i class="fa-solid fa-plus"></i> New Request</a>
+        </div>
+
+        <div class="divider"></div>
+
+        <section class="profile-card">
+            <div class="card-header">
+                <h1>My Profile</h1>
+                <p>Your personal information on IskoWalk</p>
+            </div>
+            <div class="profile-details">
+                <img src="~/images/IskoWalk.png" class="profile-avatar" alt="Profile Picture" />
+
+                <div class="profile-text">
+                    <h2 id="profileUsername">Loading...</h2>
+                    <p class="email" id="profileEmail">Loading...</p>
+                    <p class="role">Student</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="profile-card">
+            <div class="card-header">
+                <h2>Settings</h2>
+                <p>Manage your account settings.</p>
+            </div>
+            <div class="settings-content">
+                <button class="btn-delete" id="deleteAccountBtn">Delete Account</button>
+                <p class="warning-text">This action is irreversible.</p>
+            </div>
+        </section>
+    </main>
+</div>
+
+<style>
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 99999;
+}
+.modal-box {
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    max-width: 450px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+}
+.modal-box h3 {
+    margin: 0 0 10px 0;
+    color: #dc3545;
+    font-size: 22px;
+}
+.modal-box p {
+    margin: 0 0 20px 0;
+    color: #555;
+    line-height: 1.5;
+}
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+.modal-btn {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+}
+.modal-btn-cancel {
+    background: #6c757d;
+    color: white;
+}
+.modal-btn-cancel:hover {
+    background: #5a6268;
+}
+.modal-btn-delete {
+    background: #dc3545;
+    color: white;
+}
+.modal-btn-delete:hover {
+    background: #c82333;
+}
+</style>
+
+<div id="deleteModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <h3>⚠️ Delete Your Account</h3>
+        <p>Are you sure you want to delete your account? This action cannot be undone. All your data, requests, and history will be permanently deleted.</p>
+        
+        <div class="modal-buttons">
+            <button class="modal-btn modal-btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+            <button class="modal-btn modal-btn-delete" onclick="confirmDelete()">Delete Account</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function checkAuth() {
+        const token = sessionStorage.getItem('token');
+        if (!token) {
+            console.error('No token found - redirecting to login');
+            window.location.href = '/Index';
+            return false;
+        }
+        return true;
+    }
+
+    window.addEventListener('DOMContentLoaded', function() {
+        const profileDropdownBtn = document.getElementById("profileBtn");
+        const menu = document.getElementById("dropdownMenu");
+
+        if (profileDropdownBtn) {
+            profileDropdownBtn.onclick = () => menu.classList.toggle("show");
+        }
+
+        document.addEventListener("click", e => {
+            if(profileDropdownBtn && menu && !profileDropdownBtn.contains(e.target) && !menu.contains(e.target)){
+                menu.classList.remove("show");
+            }
+        });
+
+        if (checkAuth()) {
+            loadUserProfile();
+        }
+        
+        setTimeout(function() {
+            const deleteBtn = document.getElementById('deleteAccountBtn');
+            
+            if (deleteBtn) {
+                deleteBtn.removeAttribute('onclick');
+                
+                deleteBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    openDeleteModal();
+                });
+            }
+        }, 500);
+    });
+
+    async function loadUserProfile() {
+        try {
+            const token = sessionStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/Index';
+                return;
+            }
+
+            const response = await fetch('http://localhost:5012/api/Users/profile', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.status === 401) {
+                sessionStorage.clear();
+                window.location.href = '/Index';
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const user = await response.json();
+            const displayName = user.fullName || user.FullName || user.username || user.Username || 'User';
+            const email = user.email || user.Email || '';
+
+            document.getElementById('sidebarUsername').textContent = displayName;
+            document.getElementById('dropdownUsername').textContent = displayName;
+            document.getElementById('profileUsername').textContent = displayName;
+            document.getElementById('dropdownEmail').textContent = email;
+            document.getElementById('profileEmail').textContent = email;
+
+            sessionStorage.setItem('username', displayName);
+            sessionStorage.setItem('email', email);
+
+        } catch (error) {
+            console.error('Error loading profile:', error);
+            document.getElementById('profileUsername').textContent = 'Error loading profile';
+            document.getElementById('profileEmail').textContent = 'Please try refreshing the page';
+        }
+    }
+
+    function openDeleteModal() {
+        document.getElementById('deleteModal').style.display = 'flex';
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').style.display = 'none';
+    }
+
+    async function confirmDelete() {
+        const token = sessionStorage.getItem('token');
+        
+        if (!token) {
+            alert('No user logged in');
+            window.location.href = '/Index';
+            return;
+        }
+
+        try {
+            const response = await fetch('http://localhost:5012/api/Users/delete', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                alert('Account deleted successfully');
+                sessionStorage.clear();
+                localStorage.clear();
+                window.location.href = '/Index';
+            } else {
+                const error = await response.json();
+                alert('Failed to delete account: ' + (error.message || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error deleting account:', error);
+            alert('Error deleting account: ' + error.message);
+        }
+    }
+
+    function handleLogout() {
+        sessionStorage.clear();
+        localStorage.clear();
+        window.location.href = '/Index';
+    }
+</script>

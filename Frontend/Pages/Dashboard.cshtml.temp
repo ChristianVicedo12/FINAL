@@ -1,0 +1,12 @@
+// Check both sessionStorage and localStorage
+function getToken() {
+    return sessionStorage.getItem('token') || localStorage.getItem('token');
+}
+
+function getUsername() {
+    return sessionStorage.getItem('username') || localStorage.getItem('username');
+}
+
+function getEmail() {
+    return sessionStorage.getItem('email') || localStorage.getItem('email');
+}

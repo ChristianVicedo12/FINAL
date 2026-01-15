@@ -1,0 +1,372 @@
+@page
+@model IskoWalk.Pages.MyRequestsAcceptedModel
+<link rel="stylesheet" href="~/css/myrequests.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+<div class="dashboard">
+    <aside class="sidebar">
+        <div class="brand">
+            <img src="~/images/IskoWalk.png" />
+            <span>ISKOWALK</span>
+        </div>
+
+        <nav class="menu">
+            <a asp-page="/Dashboard">
+                <i class="fa-solid fa-house"></i>Dashboard
+            </a>
+            <a asp-page="/MyRequestsActive">
+                <i class="fa-solid fa-file-lines"></i>My Requests
+            </a>
+            <a asp-page="/Profile">
+                <i class="fa-solid fa-user"></i>Profile
+            </a>
+        </nav>
+
+        <div class="user-box" id="profileBtn">
+            <img src="~/images/IskoWalk.png" />
+            <div class="user-info">
+                <strong id="sidebarUsername">Loading...</strong>
+                <span>Student</span>
+            </div>
+            <i class="fa-solid fa-chevron-down"></i>
+        </div>
+
+        <div class="dropdown" id="dropdownMenu">
+            <div class="dropdown-user">
+                <strong id="dropdownUsername">Loading...</strong>
+                <small id="dropdownEmail">Loading...</small>
+            </div>
+            <hr />
+            <a id="logoutBtn" onclick="handleLogout()" style="cursor: pointer;"><i class="fa-solid fa-right-from-bracket"></i> Log out</a>
+        </div>
+    </aside>
+
+    <main class="content">
+        <div class="topbar">
+            <div class="directory">Dashboard › My Requests › <b>Accepted Request</b></div>
+            <a asp-page="/Create" class="btn-main"><i class="fa-solid fa-plus"></i> New Request</a>
+        </div>
+
+        <div class="divider"></div>
+
+        <h2>My Activity</h2>
+        <p class="subtitle">Track the requests you've created, the walks you've accepted, and view your activity history.</p>
+
+        <div class="tabs">
+            <a asp-page="/MyRequestsActive" class="tab">Active Request</a>
+            <button class="tab active">Accepted Request</button>
+            <a asp-page="/MyRequestsHistory" class="tab">History</a>
+        </div>
+
+        <div id="loadingState" style="text-align: center; padding: 40px;">
+            <i class="fa-solid fa-spinner fa-spin" style="font-size: 2rem;"></i>
+            <p>Loading accepted requests...</p>
+        </div>
+
+        <div id="emptyState" class="empty-state" style="display: none;">
+            <p class="title">You have no accepted walks.</p>
+            <p class="subtitle">Accept a request from the dashboard to help a fellow Isko.</p>
+            <a asp-page="/Dashboard" class="btn-main">View Available Requests</a>
+        </div>
+
+        <div id="requestsContainer" class="request-grid" style="display: none;"></div>
+
+        <div id="detailsModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <div>
+                        <h2>Walk Request Details</h2>
+                        <p id="modalCreatedDate">Requested on...</p>
+                    </div>
+                    <button onclick="closeModal()" style="background: none; border: none; font-size: 32px; cursor: pointer; color: #666; padding: 0;">×</button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="modal-row">
+                        <i class="fa-solid fa-user icon-circle"></i>
+                        <div>
+                            <strong>Requester</strong>
+                            <p id="modalRequesterName">Loading...</p>
+                            <small id="modalContactNumber"></small>
+                        </div>
+                    </div>
+
+                    <div class="modal-row">
+                        <i class="fa-solid fa-location-dot icon-circle"></i>
+                        <div>
+                            <strong>Route</strong>
+                            <p id="modalFromLocation">From: <b>Loading...</b></p>
+                            <p id="modalToLocation">To: <b>Loading...</b></p>
+                        </div>
+                    </div>
+
+                    <div class="modal-row">
+                        <i class="fa-regular fa-clock icon-circle"></i>
+                        <div>
+                            <strong>Date & Time</strong>
+                            <p id="modalDateTime">Loading...</p>
+                        </div>
+                    </div>
+
+                    <div class="modal-row">
+                        <i class="fa-solid fa-pen icon-circle"></i>
+                        <div>
+                            <strong>Additional Notes</strong>
+                            <p id="modalNotes">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-secondary" onclick="closeModal()">Close</button>
+                    <button id="markCompleteBtn" class="btn-complete" onclick="markAsCompleted()">
+                        <i class="fa-solid fa-check"></i>Mark as Completed
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    let currentRequestId = null;
+    let allRequests = [];
+
+    function checkAuth() {
+        const token = sessionStorage.getItem('token');
+        if (!token) {
+            console.error('No token found - redirecting to login');
+            window.location.href = '/Index';
+            return false;
+        }
+        return true;
+    }
+
+    const btn = document.getElementById("profileBtn");
+    const menu = document.getElementById("dropdownMenu");
+    btn.onclick = () => menu.classList.toggle("show");
+    document.addEventListener("click", e => {
+        if(!btn.contains(e.target) && !menu.contains(e.target)){
+            menu.classList.remove("show");
+        }
+    });
+
+    function loadUserInfo() {
+        const username = sessionStorage.getItem('username');
+        const email = sessionStorage.getItem('email');
+        
+        if (username) {
+            document.getElementById('sidebarUsername').textContent = username;
+            document.getElementById('dropdownUsername').textContent = username;
+        }
+        if (email) {
+            document.getElementById('dropdownEmail').textContent = email;
+        }
+    }
+
+    function formatTime(timeSpan) {
+        if (!timeSpan) return 'Not specified';
+        const parts = timeSpan.split(':');
+        let hours = parseInt(parts[0]);
+        const minutes = parts[1];
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+        return `${hours}:${minutes} ${ampm}`;
+    }
+
+    function formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        });
+    }
+
+    async function loadAcceptedRequests() {
+        try {
+            const token = sessionStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/Index';
+                return;
+            }
+
+            console.log('Fetching accepted requests...');
+            
+            const response = await fetch('http://localhost:5012/api/WalkRequest/my-accepted', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            console.log('Response status:', response.status);
+
+            if (response.status === 401) {
+                sessionStorage.clear();
+                window.location.href = '/Index';
+                return;
+            }
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const requests = await response.json();
+            allRequests = requests;
+            console.log('Accepted requests:', requests);
+
+            document.getElementById('loadingState').style.display = 'none';
+
+            if (!requests || requests.length === 0) {
+                document.getElementById('emptyState').style.display = 'block';
+                return;
+            }
+
+            const container = document.getElementById('requestsContainer');
+            container.style.display = 'grid';
+            
+            container.innerHTML = requests.map(request => `
+                <div class="request-card" id="card-${request.id}">
+                    <div class="completed-badge">
+                        <i class="fa-solid fa-check"></i>
+                        Completed!
+                    </div>
+                    
+                    <div class="card-header">
+                        <div class="requester">
+                            <div class="avatar">${(request.requesterName || 'U').charAt(0).toUpperCase()}</div>
+                            <div>
+                                <strong>${request.requesterName}</strong>
+                                <span>Requester</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card-body">
+                        <p class="location">
+                            <i class="fa-solid fa-location-dot"></i>
+                            <span><strong>From:</strong> ${request.fromLocation}</span>
+                        </p>
+                        <p class="location">
+                            <i class="fa-solid fa-flag"></i>
+                            <span><strong>To:</strong> ${request.toDestination}</span>
+                        </p>
+                        <p class="time">
+                            <i class="fa-regular fa-clock"></i>
+                            <span>${formatDate(request.dateOfWalk)} at ${formatTime(request.timeOfWalk)}</span>
+                        </p>
+                    </div>
+                    
+                    <div class="card-footer">
+                        <button class="btn-view" onclick="event.stopPropagation(); openDetails(${request.id})">
+                            View Details
+                        </button>
+                        <button class="btn-complete-inline" id="complete-btn-${request.id}" onclick="event.stopPropagation(); markAsCompleted(${request.id})">
+                            <i class="fa-solid fa-check"></i>
+                            Complete
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+        } catch (error) {
+            console.error('Error loading accepted requests:', error);
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'block';
+        }
+    }
+
+    async function markAsCompleted(requestId) {
+        const idToUse = requestId || currentRequestId;
+        if (!idToUse) return;
+        
+        if (confirm('Mark this walk request as completed?')) {
+            try {
+                const token = sessionStorage.getItem('token');
+                const response = await fetch(`http://localhost:5012/api/WalkRequest/${idToUse}/complete`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    closeModal();
+                    
+                    const card = document.getElementById(`card-${idToUse}`);
+                    const button = document.getElementById(`complete-btn-${idToUse}`);
+                    
+                    if (card) {
+                        card.classList.add('completed');
+                        if (button) {
+                            button.disabled = true;
+                            button.innerHTML = '<i class="fa-solid fa-check"></i>Completed';
+                        }
+                        
+                        setTimeout(() => {
+                            card.style.transition = 'all 0.5s ease';
+                            card.style.opacity = '0';
+                            card.style.transform = 'scale(0.9)';
+                            setTimeout(() => {
+                                card.remove();
+                                if (document.querySelectorAll('.request-card').length === 0) {
+                                    document.getElementById('requestsContainer').style.display = 'none';
+                                    document.getElementById('emptyState').style.display = 'block';
+                                }
+                            }, 500);
+                        }, 1500);
+                    }
+                } else {
+                    alert('Failed to mark as completed. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error marking as completed:', error);
+                alert('An error occurred. Please try again.');
+            }
+        }
+    }
+
+    function openDetails(requestId) {
+        const request = allRequests.find(r => r.id === requestId);
+        if (!request) return;
+
+        currentRequestId = requestId;
+        document.getElementById('modalRequesterName').textContent = request.requesterName;
+        document.getElementById('modalContactNumber').innerHTML = request.contactNumber 
+            ? `<i class="fa-solid fa-phone"></i> ${request.contactNumber}` 
+            : '';
+        document.getElementById('modalFromLocation').innerHTML = `From: <b>${request.fromLocation}${request.specifyOrigin ? ' (' + request.specifyOrigin + ')' : ''}</b>`;
+        document.getElementById('modalToLocation').innerHTML = `To: <b>${request.toDestination}</b>`;
+        document.getElementById('modalDateTime').textContent = `${formatDate(request.dateOfWalk)} at ${formatTime(request.timeOfWalk)}`;
+        document.getElementById('modalNotes').textContent = request.additionalNotes || 'No additional notes';
+        document.getElementById('modalCreatedDate').textContent = `Requested on ${formatDate(request.createdAt)}`;
+        document.getElementById('detailsModal').classList.add('show');
+    }
+
+    function closeModal() {
+        document.getElementById('detailsModal').classList.remove('show');
+    }
+
+    function closeModalOnOverlay(event) {
+        if (event.target === event.currentTarget) {
+            closeModal();
+        }
+    }
+
+    function handleLogout() {
+        sessionStorage.clear();
+        localStorage.clear();
+        window.location.href = '/Index';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (checkAuth()) {
+            loadUserInfo();
+            loadAcceptedRequests();
+        }
+    });
+</script>

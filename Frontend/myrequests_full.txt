@@ -1,0 +1,621 @@
+@page
+@model IskoWalk.Pages.MyRequestsAcceptedModel
+<link rel="stylesheet" href="~/css/myrequests.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+<style>
+/* Compact modal styling from Figma */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.4);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-overlay.show {
+    display: flex;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 580px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    position: relative;
+}
+
+.modal-content.small-modal {
+    max-width: 480px;
+}
+
+.modal-close-x {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #999;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-close-x:hover {
+    color: #333;
+}
+
+.modal-header {
+    padding: 20px 20px 12px;
+}
+
+.modal-header h2 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.modal-header p {
+    margin: 0;
+    color: #666;
+    font-size: 13px;
+}
+
+.modal-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+    padding: 20px 20px 8px;
+}
+
+.modal-subtitle {
+    color: #666;
+    font-size: 13px;
+    margin: 0;
+    padding: 0 20px 16px;
+}
+
+.modal-body {
+    padding: 12px 20px;
+}
+
+.detail-section {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    align-items: start;
+}
+
+.detail-section i {
+    color: #8B0000;
+    font-size: 16px;
+    margin-top: 2px;
+    width: 20px;
+    text-align: center;
+}
+
+.detail-section .detail-content {
+    flex: 1;
+}
+
+.detail-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #999;
+    margin-bottom: 4px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.detail-value {
+    font-size: 14px;
+    color: #333;
+    margin: 0;
+}
+
+.detail-value strong {
+    font-weight: 600;
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px 20px 20px;
+}
+
+.btn-secondary, .btn-complete, .btn-cancel {
+    padding: 9px 18px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-secondary {
+    background: white;
+    color: #333;
+    border: 1px solid #ddd;
+}
+
+.btn-complete {
+    background: #8B0000;
+    color: white;
+}
+
+.btn-cancel {
+    background: #dc3545;
+    color: white;
+}
+
+/* Cancel modal */
+.reason-list {
+    padding: 0 20px 12px;
+}
+
+.reason-list strong {
+    display: block;
+    margin-bottom: 12px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.reason-list label {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.reason-list label:hover {
+    background: #f8f8f8;
+    border-color: #8B0000;
+}
+
+.reason-list input[type="radio"] {
+    margin-right: 10px;
+    width: 16px;
+    height: 16px;
+    accent-color: #8B0000;
+}
+
+.heads-up-box {
+    margin: 0 20px 16px;
+    padding: 12px;
+    background: #fff5f5;
+    border-left: 3px solid #dc3545;
+    border-radius: 6px;
+    display: flex;
+    gap: 10px;
+}
+
+.heads-up-box i {
+    color: #dc3545;
+    font-size: 16px;
+    margin-top: 1px;
+    flex-shrink: 0;
+}
+
+.heads-up-box div strong {
+    display: block;
+    color: #dc3545;
+    margin-bottom: 4px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.heads-up-box div p {
+    margin: 0;
+    color: #666;
+    font-size: 12px;
+    line-height: 1.4;
+}
+</style>
+
+<div class="dashboard">
+
+    <aside class="sidebar">
+        <div class="brand">
+            <img src="~/images/IskoWalk.png" />
+            <span>ISKOWALK</span>
+        </div>
+
+        <nav class="menu">
+            <a asp-page="/Dashboard">
+                <i class="fa-solid fa-house"></i>Dashboard
+            </a>
+            <a asp-page="/MyRequestsActive">
+                <i class="fa-solid fa-file-lines"></i>My Requests
+            </a>
+            <a asp-page="/Profile">
+                <i class="fa-solid fa-user"></i>Profile
+            </a>
+        </nav>
+
+        <div class="user-box" id="profileBtn">
+            <img src="~/images/IskoWalk.png" />
+            <div class="user-info">
+                <strong id="sidebarUsername">Loading...</strong>
+                <span>Student</span>
+            </div>
+            <i class="fa-solid fa-chevron-down"></i>
+        </div>
+
+        <div class="dropdown" id="dropdownMenu">
+            <div class="dropdown-user">
+                <strong id="dropdownUsername">Loading...</strong>
+                <small id="dropdownEmail">Loading...</small>
+            </div>
+            <hr />
+            <a id="logoutBtn" onclick="handleLogout()" style="cursor: pointer;"><i class="fa-solid fa-right-from-bracket"></i> Log out</a>
+        </div>
+    </aside>
+
+    <main class="content">
+        <div class="topbar">
+            <div class="directory">Dashboard › My Requests › <b>Accepted Request</b></div>
+            <a asp-page="/Create" class="btn-main"><i class="fa-solid fa-plus"></i> New Request</a>
+        </div>
+
+        <div class="divider"></div>
+
+        <h2>My Activity</h2>
+        <p class="subtitle">Track the requests you've created, the walks you've accepted, and view your activity history.</p>
+
+        <div class="tabs">
+            <a asp-page="/MyRequestsActive" class="tab">Active Request</a>
+            <button class="tab active">Accepted Walks</button>
+            <a asp-page="/MyRequestsHistory" class="tab">History</a>
+        </div>
+
+        <div id="loadingState" style="text-align: center; padding: 40px;">
+            <i class="fa-solid fa-spinner fa-spin" style="font-size: 2rem;"></i>
+            <p>Loading accepted requests...</p>
+        </div>
+
+        <div id="emptyState" class="empty-state" style="display: none;">
+            <p class="title">You have no accepted walks.</p>
+            <p class="subtitle">Accept a request from the dashboard to help a fellow Isko.</p>
+            <a asp-page="/Dashboard" class="btn-main">View Available Requests</a>
+        </div>
+
+        <div id="requestsContainer" class="request-grid" style="display: none;"></div>
+
+        <!-- Details Modal -->
+        <div id="detailsModal" class="modal-overlay">
+            <div class="modal-content">
+                <button class="modal-close-x" onclick="closeModal()">&times;</button>
+                
+                <div class="modal-header">
+                    <h2>Walk Request Details</h2>
+                    <p id="modalCreatedDate">Requested on...</p>
+                </div>
+
+                <div class="modal-body">
+                    <div class="detail-section">
+                        <i class="fa-solid fa-user"></i>
+                        <div class="detail-content">
+                            <div class="detail-label">Requester</div>
+                            <div class="detail-value" id="modalRequesterName">Loading...</div>
+                            <div class="detail-value" style="font-size: 13px; color: #666; margin-top: 2px;" id="modalContactNumber"></div>
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <i class="fa-solid fa-location-dot"></i>
+                        <div class="detail-content">
+                            <div class="detail-label">Route</div>
+                            <div class="detail-value" id="modalRoute">Loading...</div>
+                        </div>
+                    </div>
+
+                    <div class="detail-grid">
+                        <div class="detail-section">
+                            <i class="fa-regular fa-clock"></i>
+                            <div class="detail-content">
+                                <div class="detail-label">Date & Time</div>
+                                <div class="detail-value" id="modalDateTime">Loading...</div>
+                            </div>
+                        </div>
+
+                        <div class="detail-section">
+                            <i class="fa-solid fa-shirt"></i>
+                            <div class="detail-content">
+                                <div class="detail-label">Attire Description</div>
+                                <div class="detail-value" id="modalAttire">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <i class="fa-solid fa-pen"></i>
+                        <div class="detail-content">
+                            <div class="detail-label">Additional Notes</div>
+                            <div class="detail-value" id="modalNotes">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-secondary" onclick="closeModal()">Close</button>
+                    <button class="btn-complete" onclick="markAsCompleted()"><i class="fa-solid fa-check"></i> Mark as Completed</button>
+                    <button class="btn-cancel" onclick="openCancelModal()"><i class="fa-solid fa-times-circle"></i> Cancel Walk</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cancel Modal -->
+        <div id="cancelModal" class="modal-overlay">
+            <div class="modal-content small-modal">
+                <button class="modal-close-x" onclick="closeCancelModal()">&times;</button>
+                
+                <h3 class="modal-title">Cancel Your Walk Request</h3>
+                <p class="modal-subtitle">Are you sure you want to cancel this request? Please provide a reason.</p>
+
+                <div class="reason-list">
+                    <strong>Reason for Cancellation</strong>
+                    <label>
+                        <input type="radio" name="cancelReason" value="Change of plans" checked> 
+                        Change of plans
+                    </label>
+                    <label>
+                        <input type="radio" name="cancelReason" value="No longer needed"> 
+                        No longer needed
+                    </label>
+                    <label>
+                        <input type="radio" name="cancelReason" value="Found alternative companion"> 
+                        Found alternative companion
+                    </label>
+                    <label>
+                        <input type="radio" name="cancelReason" value="Safety concern"> 
+                        Safety concern
+                    </label>
+                    <label>
+                        <input type="radio" name="cancelReason" value="Others"> 
+                        Others
+                    </label>
+                </div>
+
+                <div class="heads-up-box">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <div>
+                        <strong>Heads Up!</strong>
+                        <p>Cancelling will prevent you from creating or accepting new requests for 1 hour. This helps keep our community reliable.</p>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-secondary" onclick="closeCancelModal()">Nevermind</button>
+                    <button class="btn-cancel" onclick="confirmCancellation()">Confirm Cancellation</button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    let currentRequestId = null;
+    let allRequests = [];
+
+    const btn = document.getElementById("profileBtn");
+    const menu = document.getElementById("dropdownMenu");
+    btn.onclick = () => menu.classList.toggle("show");
+    document.addEventListener("click", e => {
+        if(!btn.contains(e.target) && !menu.contains(e.target)) menu.classList.remove("show");
+    });
+
+    function checkAuth() {
+        const token = sessionStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/Index';
+            return false;
+        }
+        return true;
+    }
+
+    function loadUserInfo() {
+        const username = sessionStorage.getItem('username');
+        const email = sessionStorage.getItem('email');
+        if (username) {
+            document.getElementById('sidebarUsername').textContent = username;
+            document.getElementById('dropdownUsername').textContent = username;
+        }
+        if (email) document.getElementById('dropdownEmail').textContent = email;
+    }
+
+    function formatTime(timeSpan) {
+        if (!timeSpan) return 'Not specified';
+        const parts = timeSpan.split(':');
+        let hours = parseInt(parts[0]);
+        const minutes = parts[1];
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+        return `${hours}:${minutes} ${ampm}`;
+    }
+
+    function formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { 
+            weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' 
+        });
+    }
+
+    function formatShortDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    async function loadAcceptedRequests() {
+        try {
+            const token = sessionStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/Index';
+                return;
+            }
+
+            const response = await fetch('http://localhost:5012/api/WalkRequest/my-accepted', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.status === 401) {
+                sessionStorage.clear();
+                window.location.href = '/Index';
+                return;
+            }
+            
+            const requests = await response.json();
+            allRequests = requests;
+
+            document.getElementById('loadingState').style.display = 'none';
+
+            if (!requests || requests.length === 0) {
+                document.getElementById('emptyState').style.display = 'block';
+                return;
+            }
+
+            const container = document.getElementById('requestsContainer');
+            container.style.display = 'grid';
+            container.innerHTML = requests.map(request => `
+                <div class="request-card">
+                    <div class="card-header">
+                        <div class="avatar"></div>
+                        <div>
+                            <strong>${request.requesterName || 'Unknown'}</strong>
+                            <div class="small">Requester</div>
+                        </div>
+                    </div>
+                    <div class="card-info">
+                        <p><i class="fa-solid fa-location-dot"></i> From <b>${request.fromLocation}</b></p>
+                        <p><i class="fa-solid fa-flag"></i> To <b>${request.toDestination}</b></p>
+                        <p><i class="fa-regular fa-clock"></i> ${formatShortDate(request.dateOfWalk)}, ${formatTime(request.timeOfWalk)}</p>
+                    </div>
+                    <div class="card-actions">
+                        <button class="view" onclick="openDetails(${request.id})">View Details</button>
+                    </div>
+                </div>
+            `).join('');
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'block';
+        }
+    }
+
+    function openDetails(requestId) {
+        const request = allRequests.find(r => r.id === requestId);
+        if (!request) return;
+
+        currentRequestId = requestId;
+        document.getElementById('modalRequesterName').textContent = request.requesterName;
+        document.getElementById('modalContactNumber').innerHTML = request.contactNumber 
+            ? `<i class="fa-solid fa-phone"></i> ${request.contactNumber}` : '';
+        document.getElementById('modalRoute').innerHTML = `From: <strong>${request.fromLocation}${request.specifyOrigin ? ' (' + request.specifyOrigin + ')' : ''}</strong><br>To: <strong>${request.toDestination}</strong>`;
+        document.getElementById('modalDateTime').textContent = `${formatDate(request.dateOfWalk)} at ${formatTime(request.timeOfWalk)}`;
+        document.getElementById('modalAttire').textContent = request.attireDescription || 'No description provided';
+        document.getElementById('modalNotes').textContent = request.additionalNotes || 'No additional notes';
+        document.getElementById('modalCreatedDate').textContent = `Requested on ${new Date(request.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+        document.getElementById('detailsModal').classList.add('show');
+    }
+
+    function closeModal() {
+        document.getElementById('detailsModal').classList.remove('show');
+    }
+
+    function openCancelModal() {
+        closeModal();
+        document.getElementById('cancelModal').classList.add('show');
+    }
+
+    function closeCancelModal() {
+        document.getElementById('cancelModal').classList.remove('show');
+    }
+
+    async function markAsCompleted() {
+        if (!currentRequestId || !confirm('Mark this walk as completed?')) return;
+
+        try {
+            const token = sessionStorage.getItem('token');
+            const response = await fetch(`http://localhost:5012/api/WalkRequest/${currentRequestId}/complete`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+            });
+
+            if (response.ok) {
+                alert('Walk marked as completed!');
+                closeModal();
+                // ✅ Redirect to History page to see completed request
+                window.location.href = '/MyRequestsHistory';
+            } else {
+                alert('Failed: ' + ((await response.json()).message || 'Unknown error'));
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    async function confirmCancellation() {
+        if (!currentRequestId) return;
+
+        const reason = document.querySelector('input[name="cancelReason"]:checked')?.value || 'No reason';
+
+        try {
+            const token = sessionStorage.getItem('token');
+            const response = await fetch(`http://localhost:5012/api/WalkRequest/${currentRequestId}/cancel`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason })
+            });
+
+            if (response.ok) {
+                alert('Walk cancelled successfully!');
+                closeCancelModal();
+                // ✅ Redirect to History page to see cancelled request
+                window.location.href = '/MyRequestsHistory';
+            } else {
+                alert('Failed: ' + ((await response.json()).message || 'Unknown error'));
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    function handleLogout() {
+        sessionStorage.clear();
+        localStorage.clear();
+        window.location.href = '/Index';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (checkAuth()) {
+            loadUserInfo();
+            loadAcceptedRequests();
+        }
+    });
+</script>
